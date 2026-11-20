@@ -1,303 +1,144 @@
-html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FORHAD AI SIGNAL SCANNER V4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FORHAD AI SIGNAL SCANNER</title>
 <style>
 *{box-sizing:border-box}
 body{
- background:#071426;color:white;
- font-family:Arial,sans-serif;
- margin:0;padding:15px
-}DOCTYPE
-h2{text-align:center;color:#00e5ff}
-.sub{text-align:center;color:#9bb4ce}
-input,button{
- width:100%;padding:14px;margin:7px 0;
- border:0;border-radius:8px;font-size:15px
+margin:0;padding:18px;
+background:#071426;color:white;
+font-family:Arial,sans-serif
 }
-input{background:#102943;color:white;border:1px solid #31506e}
-button{background:#008bd8;color:white;font-weight:bold}
+.container{max-width:600px;margin:auto}
+h1{text-align:center;color:#00e5ff;font-size:25px}
 .card{
- background:#10243b;padding:15px;
- border-radius:12px;margin:13px 0;
- border:1px solid #244766
+background:#10243d;padding:18px;
+border-radius:14px;margin:15px 0;
+border:1px solid #244766
 }
-.price{font-size:27px;color:#00e5ff}
-.green{color:#00ee88}
-.red{color:#ff6262}
-.yellow{color:#ffd45c}
-.small{font-size:12px;color:#a9bed1}
-.bar{
- height:9px;background:#263e56;
- border-radius:8px;overflow:hidden
+input,select,button{
+width:100%;padding:13px;margin:7px 0;
+border-radius:8px;border:0;font-size:15px
 }
-.fill{height:100%;background:#00d99a;width:0%}
-.status{text-align:center;padding:10px}
+button{background:#00c9a7;color:#001b24;font-weight:bold}
+.price{font-size:30px;color:#00e5ff;text-align:center}
+.signal{text-align:center;font-size:27px;font-weight:bold}
+.green{color:#00e5a0}
+.red{color:#ff5d70}
+.yellow{color:#ffd166}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #29415b}
+small{color:#aabbd0}
 </style>
 </head>
 <body>
+<div class="container">
+<h1>FORHAD AI SIGNAL SCANNER</h1>
+<p style="text-align:center;color:#00e5ff">LIVE MARKET DATA</p>
 
-<h2>FORHAD AI SIGNAL SCANNER</h2>
-<p class="sub">LIVE MARKET DATA • VERSION 4.0</p>
-
-<input id="api" type="password"
-placeholder="Enter Twelve Data API Key">
-
-<button onclick="connect()">CONNECT API</button>
-<button onclick="scan()">REFRESH ALL MARKETS</button>
-
-<div class="card status">
- <div id="status">Waiting for connection...</div>
- <p class="small">Next refresh: <span id="timer">60</span> seconds</p>
+<div class="card">
+<h3>API CONNECTION</h3>
+<input id="api" type="password" placeholder="Enter Twelve Data API Key">
+<button onclick="connect()">CONNECT</button>
+<p id="status">Not connected</p>
 </div>
 
-<div id="markets"></div>
+<div class="card">
+<h3>Select Market</h3>
+<select id="pair">
+<option value="EUR/USD">EUR/USD</option>
+<option value="GBP/USD">GBP/USD</option>
+<option value="USD/JPY">USD/JPY</option>
+</select>
+<button onclick="scan()">SCAN MARKET</button>
+</div>
 
-<p class="small">
-Educational demo only. Signals and calculated levels are not
-financial advice or guaranteed predictions.
-</p>
+<div class="card">
+<h3 id="market">EUR/USD</h3>
+<div class="price" id="price">--</div>
+<div class="signal yellow" id="signal">WAITING</div>
+<div class="row"><span>RSI (14)</span><b id="rsi">--</b></div>
+<div class="row"><span>EMA 9</span><b id="ema9">--</b></div>
+<div class="row"><span>EMA 21</span><b id="ema21">--</b></div>
+<div class="row"><span>Trend</span><b id="trend">--</b></div>
+<div class="row"><span>Signal Strength</span><b id="strength">--</b></div>
+<div class="row"><span>Data Status</span><b id="fresh">--</b></div>
+</div>
+
+<div class="card">
+<small>Educational tool only. Signals are estimates, not financial advice. No guaranteed profit.</small>
+</div>
+</div>
 
 <script>
-const markets=[
- {name:"EUR/USD",symbol:"EUR/USD",digits:5},
- {name:"GBP/USD",symbol:"GBP/USD",digits:5},
- {name:"GOLD",symbol:"XAU/USD",digits:2},
- {name:"BTC/USD",symbol:"BTC/USD",digits:2}
-];
-
-let apiKey="";
-let busy=false;
-let countdown=60;
-
-document.getElementById("markets").innerHTML=
-markets.map(m=>`
-<div class="card" id="${m.name.replace("/","")}">
-<h3>${m.name}</h3>
-<p>Waiting for live data...</p>
-</div>`).join("");
-
-function fmt(n,d){
- return Number(n).toFixed(d);
-}
-
-function ema(values,period){
- let k=2/(period+1);
- let result=values[0];
- for(let i=1;i<values.length;i++){
-  result=values[i]*k+result*(1-k);
- }
- return result;
-}
-
-function rsi(values){
- let gain=0,loss=0;
- for(let i=values.length-14;i<values.length;i++){
-  let change=values[i]-values[i-1];
-  if(change>0)gain+=change;
-  else loss-=change;
- }
- let avgGain=gain/14;
- let avgLoss=loss/14;
- if(avgLoss===0)return 100;
- return 100-(100/(1+avgGain/avgLoss));
-}
-
-function atr(rows){
- let total=0;
- for(let i=1;i<15;i++){
-  let j=rows.length-i;
-  let high=Number(rows[j].high);
-  let low=Number(rows[j].low);
-  let previous=Number(rows[j-1].close);
-  total+=Math.max(
-   high-low,
-   Math.abs(high-previous),
-   Math.abs(low-previous)
-  );
- }
- return total/14;
-}
-
-function strength(direction,rv,e9,e21,volatility){
- let score=0;
- let gap=Math.abs(e9-e21);
- let gapScore=volatility>0?
- Math.min(25,gap/volatility*100):0;
-
- score+=gapScore;
-
- if(direction==="BUY"){
-  if(rv>=52&&rv<=65)score+=35;
-  else if(rv>50&&rv<70)score+=22;
-  if(e9>e21)score+=25;
-  if(rv>50)score+=15;
- }else if(direction==="SELL"){
-  if(rv>=35&&rv<=48)score+=35;
-  else if(rv>30&&rv<50)score+=22;
-  if(e9<e21)score+=25;
-  if(rv<50)score+=15;
- }
- return Math.min(100,Math.round(score));
-}
+let key="";
 
 function connect(){
- apiKey=document.getElementById("api").value.trim();
- if(!apiKey){
-  alert("Please enter Twelve Data API Key");
-  return;
- }
- countdown=60;
- scan();
+key=document.getElementById("api").value.trim();
+if(!key){alert("Please enter API Key");return}
+document.getElementById("status").innerText="API key entered. Testing...";
+scan();
+}
+
+function ema(data,period){
+let k=2/(period+1),v=data[0];
+for(let i=1;i<data.length;i++)v=data[i]*k+v*(1-k);
+return v;
+}
+
+function rsi(data){
+let gain=0,loss=0;
+for(let i=1;i<=14;i++){
+let d=data[i-1]-data[i];
+if(d>0)gain+=d;else loss-=d;
+}
+if(loss===0)return 100;
+return 100-100/(1+gain/loss);
 }
 
 async function scan(){
- if(!apiKey){
-  document.getElementById("status").innerText=
-  "Please connect your API Key";
-  return;
- }
- if(busy)return;
+if(!key){alert("Enter API Key first");return}
+let pair=document.getElementById("pair").value;
+document.getElementById("market").innerText=pair;
+document.getElementById("status").innerText="Loading market data...";
 
- busy=true;
- document.getElementById("status").innerText=
- "Scanning all markets...";
+try{
+let url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=1min&outputsize=50&apikey=${encodeURIComponent(key)}`;
+let response=await fetch(url);
+let result=await response.json();
 
- let received=0;
+if(!result.values)throw Error(result.message||"Data unavailable");
 
- for(const m of markets){
-  const box=document.getElementById(
-   m.name.replace("/","")
-  );
+let values=result.values.map(x=>Number(x.close));
+let current=values[0];
+let e9=ema(values.slice().reverse(),9);
+let e21=ema(values.slice().reverse(),21);
+let r=rsi(values);
 
-  try{
-   const url=
-   "https://api.twelvedata.com/time_series"+
-   "?symbol="+encodeURIComponent(m.symbol)+
-   "&interval=1min&outputsize=100&timezone=UTC"+
-   "&apikey="+encodeURIComponent(apiKey);
+let up=e9>e21;
+let signal="WAIT";
+let strength=50;
 
-   const response=await fetch(url);
-   const data=await response.json();
+if(up&&r>50&&r<70){signal="BUY";strength=75}
+else if(!up&&r<50&&r>30){signal="SELL";strength=75}
 
-   if(!data.values||data.values.length<30){
-    throw Error(data.message||"Market data unavailable");
-   }
-
-   const rows=data.values.slice().reverse();
-   const closes=rows.map(x=>Number(x.close));
-   const price=closes[closes.length-1];
-
-   if(!Number.isFinite(price)||price<=0)
-    throw Error("Invalid price data");
-
-   const rv=rsi(closes.slice(-15));
-   const e9=ema(closes.slice(-50),9);
-   const e21=ema(closes.slice(-50),21);
-   const volatility=atr(rows);
-
-   const candleText=rows[rows.length-1].datetime;
-   const candleTime=new Date(candleText+"Z").getTime();
-   const age=Math.max(0,(Date.now()-candleTime)/1000);
-   const fresh=Number.isFinite(candleTime)&&age<=180;
-
-   let trend="SIDEWAYS";
-   if(e9>e21)trend="UPTREND";
-   if(e9<e21)trend="DOWNTREND";
-
-   let signal="WAIT";
-   if(fresh&&e9>e21&&rv>50&&rv<70)
-    signal="BUY";
-   else if(fresh&&e9<e21&&rv<50&&rv>30)
-    signal="SELL";
-
-   let score=strength(
-    signal,rv,e9,e21,volatility
-   );
-
-   let signalName=signal;
-   if(signal==="BUY"&&score>=75)
-    signalName="STRONG BUY";
-   if(signal==="SELL"&&score>=75)
-    signalName="STRONG SELL";
-
-   let color=signal==="BUY"?"green":
-   signal==="SELL"?"red":"yellow";
-
-   let entry=price,sl=0,tp=0;
-
-   if(signal==="BUY"){
-    sl=price-volatility*1.5;
-    tp=price+volatility*2;
-   }
-   if(signal==="SELL"){
-    sl=price+volatility*1.5;
-    tp=price-volatility*2;
-   }
-
-   let freshness=fresh?
-    '<span class="green">FRESH DATA</span>':
-    '<span class="red">STALE DATA - CHECK FEED</span>';
-
-   let levels=signal==="WAIT"?
-    "Not available":
-    "Entry: "+fmt(entry,m.digits)+
-    "<br>Demo SL: "+fmt(sl,m.digits)+
-    "<br>Demo TP: "+fmt(tp,m.digits);
-
-   box.innerHTML=`
-   <h3>${m.name}</h3>
-   <div class="price">${fmt(price,m.digits)}</div>
-
-   <p>RSI (14): ${rv.toFixed(2)}</p>
-   <p>EMA 9: ${fmt(e9,m.digits)}</p>
-   <p>EMA 21: ${fmt(e21,m.digits)}</p>
-   <p>Trend: <b>${trend}</b></p>
-
-   <h2 class="${color}">${signalName}</h2>
-
-   <p>Signal Strength: ${score}%</p>
-   <div class="bar">
-    <div class="fill" style="width:${score}%"></div>
-   </div>
-
-   <p>${levels}</p>
-
-   <p>Data status: ${freshness}</p>
-   <p class="small">Last candle (UTC): ${candleText}</p>
-   <p class="small">Candle age: ${Math.floor(age)} seconds</p>
-   <p class="small">Source: Twelve Data API</p>
-   `;
-
-   received++;
-
-  }catch(error){
-   box.innerHTML=`
-   <h3>${m.name}</h3>
-   <p class="red">DATA ERROR</p>
-   <p class="small">${error.message}</p>
-   `;
-  }
- }
-
- document.getElementById("status").innerText=
- received+" of 4 markets received data • "+
- new Date().toLocaleTimeString();
-
- countdown=60;
- busy=false;
+document.getElementById("price").innerText=current;
+document.getElementById("rsi").innerText=r.toFixed(2);
+document.getElementById("ema9").innerText=e9.toFixed(5);
+document.getElementById("ema21").innerText=e21.toFixed(5);
+document.getElementById("trend").innerText=up?"UPTREND":"DOWNTREND";
+document.getElementById("signal").innerText=signal;
+document.getElementById("signal").className="signal "+(signal==="BUY"?"green":signal==="SELL"?"red":"yellow");
+document.getElementById("strength").innerText=strength+"%";
+document.getElementById("fresh").innerText="DATA RECEIVED";
+document.getElementById("status").innerText="Connected";
+}catch(e){
+document.getElementById("status").innerText="Error: "+e.message;
+document.getElementById("fresh").innerText="DATA UNAVAILABLE";
 }
-
-setInterval(()=>{
- if(countdown>0)countdown--;
- document.getElementById("timer").innerText=countdown;
- if(countdown===0&&apiKey&&!busy){
-  scan();
- }
-},1000);
-
+}
 </script>
 </body>
 </html>
